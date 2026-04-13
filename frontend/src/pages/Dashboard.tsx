@@ -16,7 +16,8 @@ function fmt(n: number, dec = 1): string {
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  const utcIso = iso.includes('Z') || iso.includes('+') ? iso : `${iso}Z`;
+  return new Date(utcIso).toLocaleString();
 }
 
 export default function Dashboard() {

@@ -17,6 +17,7 @@ export default function Lookup() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [searched, setSearched] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<Record<string, 'saving' | 'saved' | null>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   const search = async (id = query.trim()) => {
@@ -38,11 +39,16 @@ export default function Lookup() {
   };
 
   const handleRate = async (productId: string, rating: number) => {
+    setFeedbackStatus(prev => ({ ...prev, [productId]: 'saving' }));
     try {
       await submitFeedback(custId, productId, { rating });
-      // No need to refresh the whole list, just visual confirmation
+      setFeedbackStatus(prev => ({ ...prev, [productId]: 'saved' }));
+      setTimeout(() => {
+        setFeedbackStatus(prev => ({ ...prev, [productId]: null }));
+      }, 2000);
     } catch (e) {
       console.error('Failed to submit feedback', e);
+      setFeedbackStatus(prev => ({ ...prev, [productId]: null }));
     }
   };
 
@@ -142,22 +148,33 @@ export default function Lookup() {
                     }}>
                       conf {rec.confidence.toFixed(2)}
                     </span>
-                    <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                      <button 
-                        onClick={() => handleRate(rec.product_id, 1)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2 }}
-                        title="Like"
-                      >
-                        👍
-                      </button>
-                      <button 
-                        onClick={() => handleRate(rec.product_id, -1)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2 }}
-                        title="Dislike"
-                      >
-                        👎
-                      </button>
-                    </div>
+                     <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
+                       {feedbackStatus[rec.product_id] === 'saved' && (
+                         <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginRight: 8, animation: 'fadeIn 0.3s ease' }}>
+                           ✓ Saved
+                         </span>
+                       )}
+                       <button 
+                         onClick={() => handleRate(rec.product_id, 1)}
+                         style={{ 
+                           background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2,
+                           opacity: feedbackStatus[rec.product_id] === 'saving' ? 0.5 : 1 
+                         }}
+                         title="Like"
+                       >
+                         👍
+                       </button>
+                       <button 
+                         onClick={() => handleRate(rec.product_id, -1)}
+                         style={{ 
+                           background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2,
+                           opacity: feedbackStatus[rec.product_id] === 'saving' ? 0.5 : 1 
+                         }}
+                         title="Dislike"
+                       >
+                         👎
+                       </button>
+                     </div>
                   </div>
                 </div>
             ))}
