@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { fetchStats } from '../api/client'; // I will need to add user management calls to api/client or use fetch directly
 import Spinner from '../components/Spinner';
 
 interface User {
@@ -160,8 +159,9 @@ export default function UserManagement() {
                   <button 
                     className="btn btn-secondary btn-sm" 
                     onClick={() => {
-                      setEditingUser(u);
-                      setFormUser({ ...u });
+                       setEditingUser(u);
+                       setFormUser({ ...u, password: '' });
+
                     }}
                   >
                     Edit
