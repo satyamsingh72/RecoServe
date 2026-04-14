@@ -5,8 +5,9 @@ import Lookup from './pages/Lookup';
 import Pipeline from './pages/Pipeline';
 import LoginPage from './pages/LoginPage';
 import UserManagement from './pages/UserManagement';
+import RoleManagement from './pages/RoleManagement';
 import { AuthProvider } from './context/AuthContext';
-import { ProtectedRoute, RoleProtectedRoute } from './components/Guards';
+import { ProtectedRoute, RoleProtectedRoute, PermissionProtectedRoute } from './components/Guards';
 
 export default function App() {
   return (
@@ -24,30 +25,38 @@ export default function App() {
                     <main className="page-content">
                       <Routes>
                         <Route path="/"         element={<Dashboard />} />
-                        <Route 
-                          path="/lookup" 
-                          element={
-                            <RoleProtectedRoute allowedRoles={["Admin"]}>
-                              <Lookup />
-                            </RoleProtectedRoute>
-                          } 
-                        />
                          <Route 
-                           path="/pipeline" 
+                           path="/lookup" 
                            element={
-                             <RoleProtectedRoute allowedRoles={["Admin"]}>
-                               <Pipeline />
-                             </RoleProtectedRoute>
+                             <PermissionProtectedRoute requiredPermission="recommendations_view">
+                               <Lookup />
+                             </PermissionProtectedRoute>
                            } 
                          />
-                         <Route 
-                           path="/users" 
-                           element={
-                             <RoleProtectedRoute allowedRoles={["Admin"]}>
-                               <UserManagement />
-                             </RoleProtectedRoute>
-                           } 
-                         />
+                          <Route 
+                            path="/pipeline" 
+                            element={
+                              <PermissionProtectedRoute requiredPermission="pipeline_run">
+                                <Pipeline />
+                              </PermissionProtectedRoute>
+                            } 
+                          />
+                          <Route 
+                            path="/users" 
+                            element={
+                              <PermissionProtectedRoute requiredPermission="user_manage">
+                                <UserManagement />
+                              </PermissionProtectedRoute>
+                            } 
+                          />
+                          <Route 
+                            path="/roles" 
+                            element={
+                              <PermissionProtectedRoute requiredPermission="user_manage">
+                                <RoleManagement />
+                              </PermissionProtectedRoute>
+                            } 
+                          />
                        </Routes>
 
                     </main>

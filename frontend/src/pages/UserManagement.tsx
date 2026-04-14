@@ -7,29 +7,43 @@ interface User {
   is_active: boolean;
 }
 
+interface Role {
+  name: string;
+}
+
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Form states
-  const [formUser, setFormUser] = useState({ username: '', password: '', role: 'Standard', is_active: true });
+  const [formUser, setFormUser] = useState({ username: '', password: '', role: '', is_active: true });
   const [formPass, setFormPass] = useState('');
 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://127.0.0.1:8000/users', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || 'Failed to fetch users');
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+      
+      const [usersRes, rolesRes] = await Promise.all([
+        fetch('http://127.0.0.1:8000/users', { headers }),
+        fetch('http://127.0.0.1:8000/roles', { headers })
+      ]);
+
+      if (!usersRes.ok || !rolesRes.ok) throw new Error('Failed to fetch data');
+      
+      const usersData = await usersRes.json();
+      const rolesData = await rolesRes.json();
+      
+      setUsers(usersData);
+      setRoles(rolesData);
+
+      if (rolesData.length > 0) {
+        setFormUser(prev => ({ ...prev, role: rolesData[0].name }));
       }
-      const data = await res.json();
-      setUsers(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -55,7 +69,7 @@ export default function UserManagement() {
         throw new Error(data.detail || 'Failed to create user');
       }
       setShowCreateModal(false);
-      setFormUser({ username: '', password: '', role: 'Standard', is_active: true });
+      setFormUser({ username: '', password: '', role: roles[0]?.name || '', is_active: true });
       loadUsers();
     } catch (err: any) {
       alert(err.message);
@@ -194,8 +208,7 @@ export default function UserManagement() {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>ROLE</label>
                 <select className="input" style={{ width: '100%' }} value={formUser.role} onChange={e => setFormUser({...formUser, role: e.target.value})}>
-                  <option value="Standard">Standard</option>
-                  <option value="Admin">Admin</option>
+                  {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -224,8 +237,7 @@ export default function UserManagement() {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>ROLE</label>
                 <select className="input" style={{ width: '100%' }} value={formUser.role} onChange={e => setFormUser({...formUser, role: e.target.value})}>
-                  <option value="Standard">Standard</option>
-                  <option value="Admin">Admin</option>
+                  {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>

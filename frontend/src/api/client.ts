@@ -38,6 +38,7 @@ export interface RecommendationItem {
   l2_category: string;
   l3_category: string;
   rank: number;
+  has_feedback: boolean;
 }
 
 export interface RecommendationResponse {

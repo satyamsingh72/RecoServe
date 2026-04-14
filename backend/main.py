@@ -22,7 +22,8 @@ load_dotenv()
 
 import data_loader
 import pipeline as pl
-from auth import RoleChecker, get_current_user, create_access_token, db, verify_password, get_password_hash, User, Token
+from auth import RoleChecker, PermissionChecker, get_current_user, create_access_token, db, verify_password, get_password_hash, User, Token
+from roles import router as roles_router
 from models import (
     HealthResponse,
     PipelineStatusResponse,
@@ -74,7 +75,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-
+app.include_router(roles_router)
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -117,17 +118,21 @@ async def login(req: LoginRequest):
             detail="Your account has been disabled. Please contact an administrator."
         )
     
-    access_token = create_access_token(data={"sub": user["username"], "role": user["role"]})
+    # Fetch permissions for the user's role
+    role_data = await db.roles.find_one({"name": user["role"]})
+    permissions = role_data.get("permissions", []) if role_data else []
+    
+    access_token = create_access_token(data={"sub": user["username"], "role": user["role"], "permissions": permissions})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/users", tags=["admin"])
-async def list_users(_ = Depends(RoleChecker(["Admin"]))):
+async def list_users(_ = Depends(PermissionChecker("user_manage"))):
     users = await db.users.find().to_list(length=100)
     # Clean MongoDB _id for JSON response
     return [{k: v for k, v in u.items() if k != "_id"} for u in users]
 
 @app.post("/users", tags=["admin"])
-async def create_user(req: UserCreate, _ = Depends(RoleChecker(["Admin"]))):
+async def create_user(req: UserCreate, _ = Depends(PermissionChecker("user_manage"))):
     if await db.users.find_one({"username": req.username}):
         raise HTTPException(status_code=400, detail="Username already exists")
     
@@ -141,7 +146,7 @@ async def create_user(req: UserCreate, _ = Depends(RoleChecker(["Admin"]))):
     return {"success": True, "message": f"User {req.username} created"}
 
 @app.patch("/users/{username}", tags=["admin"])
-async def update_user(username: str, req: UserUpdate, _ = Depends(RoleChecker(["Admin"]))):
+async def update_user(username: str, req: UserUpdate, _ = Depends(PermissionChecker("user_manage"))):
     update_data = {}
     if req.role is not None: update_data["role"] = req.role
     if req.is_active is not None: update_data["is_active"] = req.is_active
@@ -155,7 +160,7 @@ async def update_user(username: str, req: UserUpdate, _ = Depends(RoleChecker(["
     return {"success": True, "message": f"User {username} updated"}
 
 @app.patch("/users/{username}/password", tags=["admin"])
-async def change_password(username: str, req: PasswordUpdate, _ = Depends(RoleChecker(["Admin"]))):
+async def change_password(username: str, req: PasswordUpdate, _ = Depends(PermissionChecker("user_manage"))):
     hashed = get_password_hash(req.password)
     result = await db.users.update_one({"username": username}, {"$set": {"password": hashed}})
     if result.modified_count == 0:
@@ -175,7 +180,7 @@ async def submit_feedback(
     customer_id: str,
     product_id: str,
     feedback: FeedbackRequest,
-    _ = Depends(RoleChecker(["Admin"]))
+    _ = Depends(PermissionChecker("recommendations_feedback"))
 ):
     try:
         data_loader.record_feedback(customer_id, product_id, feedback.rating)
@@ -183,6 +188,7 @@ async def submit_feedback(
     except Exception as exc:
         logger.exception("Failed to record feedback")
         raise HTTPException(status_code=500, detail=str(exc))
+
 
 
 @app.get("/health", response_model=HealthResponse, tags=["ops"])
@@ -204,11 +210,12 @@ async def health():
 async def get_recommendations(
     customer_id: str,
     top_n: int = Query(default=TOP_N_DEFAULT, ge=1, le=100),
-    _ = Depends(RoleChecker(["Admin"]))
+    _ = Depends(PermissionChecker("recommendations_view"))
 ):
     t0 = time.perf_counter()
     recs = data_loader.get_recommendations(customer_id, top_n=top_n)
     latency_ms = round((time.perf_counter() - t0) * 1000, 3)
+
 
     if not recs:
         # Return empty list — caller decides how to handle
@@ -229,9 +236,10 @@ async def get_recommendations(
 
 @app.get("/stats", response_model=StatsResponse, tags=["analytics"])
 async def get_stats(
-    _ = Depends(RoleChecker(["Admin", "Standard"]))
+    _ = Depends(PermissionChecker("stats_view"))
 ):
     stats = data_loader.get_stats()
+
     if not stats:
         raise HTTPException(status_code=503, detail="Data not yet loaded")
 
@@ -254,10 +262,11 @@ async def get_stats(
 
 @app.post("/data/refresh", response_model=RefreshResponse, tags=["ops"])
 async def refresh_data(
-    _ = Depends(RoleChecker(["Admin"]))
+    _ = Depends(PermissionChecker("data_refresh"))
 ):
     try:
         data_loader.load_data()
+
         return RefreshResponse(
             success=True,
             message="Data reloaded successfully",
@@ -271,10 +280,11 @@ async def refresh_data(
 
 @app.post("/pipeline/run", response_model=PipelineStatusResponse, tags=["pipeline"])
 async def run_pipeline(
-    _ = Depends(RoleChecker(["Admin"]))
+    _ = Depends(PermissionChecker("pipeline_run"))
 ):
     try:
         # Flush live feedback to S3 before starting the pipeline
+
         # This ensures Step 6 (Feedback Calibration) uses the latest data
         data_loader.flush_feedback_to_s3()
         
@@ -294,9 +304,10 @@ async def run_pipeline(
 
 @app.get("/pipeline/status", response_model=PipelineStatusResponse, tags=["pipeline"])
 async def pipeline_status(
-    _ = Depends(RoleChecker(["Admin"]))
+    _ = Depends(PermissionChecker("pipeline_status"))
 ):
     state = await pl.fetch_pipeline_status()
+
     return PipelineStatusResponse(
         pipeline_name=PIPELINE_NAME,
         execution_arn=state.get("execution_arn"),

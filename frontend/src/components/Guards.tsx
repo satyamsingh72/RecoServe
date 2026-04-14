@@ -15,10 +15,26 @@ export const RoleProtectedRoute = ({ children, allowedRoles }: { children: React
   return <>{children}</>;
 };
 
+export const PermissionProtectedRoute = ({ children, requiredPermission }: { children: React.ReactNode, requiredPermission: string }) => {
+  const { user } = useAuth();
+  if (!user || !user.permissions.includes(requiredPermission)) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+};
+
 export const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) => {
   const { user } = useAuth();
   if (!user || !allowedRoles.includes(user.role)) {
     return null; // Hide the component entirely if role doesn't match
+  }
+  return <>{children}</>;
+};
+
+export const PermissionGuard = ({ children, requiredPermission }: { children: React.ReactNode, requiredPermission: string }) => {
+  const { user } = useAuth();
+  if (!user || !user.permissions.includes(requiredPermission)) {
+    return null; // Hide the component entirely if permission doesn't match
   }
   return <>{children}</>;
 };

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { fetchHealth } from '../api/client';
-import { RoleGuard } from './Guards';
+import { PermissionGuard } from './Guards';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/',          icon: '📊', label: 'Dashboard',       roles: ["Admin", "Standard"] },
-  { to: '/lookup',    icon: '🔍', label: 'Customer Lookup', roles: ["Admin"] },
-  { to: '/pipeline',  icon: '⚙️', label: 'Pipeline',        roles: ["Admin"] },
-  { to: '/users',     icon: '👥', label: 'User Management', roles: ["Admin"] },
+  { to: '/',          icon: '📊', label: 'Dashboard',       permission: 'stats_view' },
+  { to: '/lookup',    icon: '🔍', label: 'Customer Lookup', permission: 'recommendations_view' },
+  { to: '/pipeline',  icon: '⚙️', label: 'Pipeline',        permission: 'pipeline_run' },
+  { to: '/users',     icon: '👥', label: 'User Management', permission: 'user_manage' },
+  { to: '/roles',     icon: '🛡️', label: 'Roles & Perms',   permission: 'user_manage' },
 ];
 
 export default function Sidebar() {
@@ -33,7 +34,7 @@ export default function Sidebar() {
       <div className="sidebar-section-label">Navigation</div>
 
       {navItems.map(item => (
-        <RoleGuard key={item.to} allowedRoles={item.roles}>
+        <PermissionGuard key={item.to} requiredPermission={item.permission}>
           <NavLink
             to={item.to}
             end={item.to === '/'}
@@ -42,7 +43,7 @@ export default function Sidebar() {
             <span className="nav-icon">{item.icon}</span>
             {item.label}
           </NavLink>
-        </RoleGuard>
+        </PermissionGuard>
       ))}
 
        <div className="sidebar-footer">

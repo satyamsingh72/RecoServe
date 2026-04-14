@@ -61,7 +61,7 @@ export default function Dashboard() {
     <div>
       <div className="page-header dashboard-header">
         <div>
-          <h1 className="page-title">📊 Dashboard</h1>
+          <h1 className="page-title">Dashboard</h1>
           <p className="page-subtitle">Real-time recommendation analytics — auto-refreshes every 30s</p>
         </div>
         <div className="dashboard-segment-ctrl">

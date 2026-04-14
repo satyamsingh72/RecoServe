@@ -29,6 +29,7 @@ _lookup: Dict[str, List[dict]] = {}
 _stats_cache: dict = {}
 _last_refresh: Optional[datetime] = None
 _live_feedback: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+_historical_feedback: set[tuple[str, str]] = set()
 
 BUFFER_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "feedback_buffer.json"))
 
@@ -38,7 +39,18 @@ BUFFER_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "f
 def get_recommendations(customer_id: str, top_n: int = 10) -> List[dict]:
     """Sub-10 ms lookup — pure dict access."""
     recs = _lookup.get(customer_id, [])
-    return recs[:top_n]
+    
+    # Augment each item with its current feedback status
+    augmented_recs = []
+    for r in recs:
+        item = r.copy()
+        # Check both historical (S3) and live (buffer) feedback
+        has_feedback = (customer_id, item["product_id"]) in _historical_feedback \
+                       or item["product_id"] in _live_feedback[customer_id]
+        item["has_feedback"] = has_feedback
+        augmented_recs.append(item)
+        
+    return augmented_recs[:top_n]
 
 
 def get_stats() -> dict:
@@ -90,26 +102,50 @@ def record_feedback(customer_id: str, product_id: str, rating: int) -> None:
     logger.info("Feedback recorded and buffered: %s -> %s (%d)", customer_id, product_id, rating)
 
 
+def _load_historical_feedback() -> None:
+    """Loads historical feedback from S3 CSV to set for O(1) lookup."""
+    global _historical_feedback
+    import boto3
+    region = os.getenv("AWS_REGION", "us-east-1")
+    s3 = boto3.client("s3", region_name=region)
+    bucket = os.getenv("S3_BUCKET", "ipre-prod-poc")
+    key = "feedback/feedback.csv"
+    
+    try:
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+        if not df.empty and "customer_id" in df.columns and "product_id" in df.columns:
+            pairs = set(zip(df["customer_id"].astype(str), df["product_id"].astype(str)))
+            _historical_feedback.update(pairs)
+            logger.info("Loaded %d historical feedback pairs from S3", len(pairs))
+    except Exception as e:
+        logger.warning("Could not load historical feedback from S3: %s", e)
+
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 
 
+
 def load_data() -> None:
     """Entry point called at startup and on /data/refresh."""
-    global _lookup, _stats_cache, _last_refresh, _live_feedback
-
+    global _lookup, _stats_cache, _last_refresh, _live_feedback, _historical_feedback
+    
     mock_mode = os.getenv("MOCK_MODE", "true").lower() == "true"
     
     # Load persisted live feedback from buffer on startup
     _live_feedback = _load_buffer()
-
+    
+    # Load historical feedback from S3 CSV
+    _historical_feedback.clear()
+    _load_historical_feedback()
+    
     if mock_mode:
         logger.info("MOCK_MODE=true — generating synthetic recommendation data")
         df = _generate_mock_df()
     else:
         logger.info("Loading data from S3 …")
         df = _load_from_s3()
-
+    
     logger.info("Building in-memory lookup …")
     _lookup = _build_lookup(df)
     _stats_cache = _compute_stats(df)
@@ -119,6 +155,7 @@ def load_data() -> None:
         len(_lookup),
         len(df),
     )
+
 
 
 def _load_json_from_s3(key: str) -> dict:
@@ -193,6 +230,11 @@ def flush_feedback_to_s3() -> int:
     s3.put_object(Bucket=bucket, Key=key, Body=csv_buffer.getvalue())
     
     # 5. Clear local buffer after successful upload
+    # First, merge live feedback into historical cache so it persists in UI
+    for cid, prods in _live_feedback.items():
+        for pid in prods:
+            _historical_feedback.add((cid, pid))
+            
     _live_feedback.clear()
     _save_buffer()
     

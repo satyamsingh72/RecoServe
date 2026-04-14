@@ -11,6 +11,7 @@ class RecommendationItem(BaseModel):
     l2_category: str
     l3_category: str
     rank: int
+    has_feedback: bool = False
 
 class FeedbackRequest(BaseModel):
     rating: int  # 1 for positive, -1 for negative, 0 for neutral

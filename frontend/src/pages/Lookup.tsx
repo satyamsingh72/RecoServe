@@ -4,18 +4,18 @@ import { fetchRecommendations, submitFeedback, type RecommendationItem } from '.
 
 function scoreColor(score: number): string {
   if (score >= 0.85) return '#10b981';
-  if (score >= 0.7)  return '#6378ff';
+  if (score >= 0.7) return '#6378ff';
   return '#94a3c0';
 }
 
 export default function Lookup() {
-  const [query, setQuery]     = useState('');
-  const [topN, setTopN]       = useState(10);
-  const [recs, setRecs]       = useState<RecommendationItem[]>([]);
-  const [custId, setCustId]   = useState('');
+  const [query, setQuery] = useState('');
+  const [topN, setTopN] = useState(10);
+  const [recs, setRecs] = useState<RecommendationItem[]>([]);
+  const [custId, setCustId] = useState('');
   const [latency, setLatency] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState<Record<string, 'saving' | 'saved' | null>>({});
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +43,12 @@ export default function Lookup() {
     try {
       await submitFeedback(custId, productId, { rating });
       setFeedbackStatus(prev => ({ ...prev, [productId]: 'saved' }));
+
+      // Immediately update the recommendation list to show feedback is given
+      setRecs(prev => prev.map(rec =>
+        rec.product_id === productId ? { ...rec, has_feedback: true } : rec
+      ));
+
       setTimeout(() => {
         setFeedbackStatus(prev => ({ ...prev, [productId]: null }));
       }, 2000);
@@ -65,7 +71,7 @@ export default function Lookup() {
           <input
             ref={inputRef}
             className="input"
-            placeholder="Enter Customer ID (e.g. CUST_042831)"
+            placeholder="Enter Customer ID (e.g. C00002)"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
@@ -141,42 +147,48 @@ export default function Lookup() {
                   <span className="rec-tag">{rec.l2_category}</span>
                   <span className="rec-tag">{rec.l3_category}</span>
                   <span className="rec-lift">×{rec.lift.toFixed(2)} lift</span>
-                    <span style={{
-                      fontSize: 11, padding: '3px 8px', borderRadius: 4,
-                      background: 'rgba(34,211,238,0.07)', color: '#22d3ee',
-                      border: '1px solid rgba(34,211,238,0.15)',
-                    }}>
-                      conf {rec.confidence.toFixed(2)}
-                    </span>
-                     <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
-                       {feedbackStatus[rec.product_id] === 'saved' && (
-                         <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginRight: 8, animation: 'fadeIn 0.3s ease' }}>
-                           ✓ Saved
-                         </span>
-                       )}
-                       <button 
-                         onClick={() => handleRate(rec.product_id, 1)}
-                         style={{ 
-                           background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2,
-                           opacity: feedbackStatus[rec.product_id] === 'saving' ? 0.5 : 1 
-                         }}
-                         title="Like"
-                       >
-                         👍
-                       </button>
-                       <button 
-                         onClick={() => handleRate(rec.product_id, -1)}
-                         style={{ 
-                           background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2,
-                           opacity: feedbackStatus[rec.product_id] === 'saving' ? 0.5 : 1 
-                         }}
-                         title="Dislike"
-                       >
-                         👎
-                       </button>
-                     </div>
+                  <span style={{
+                    fontSize: 11, padding: '3px 8px', borderRadius: 4,
+                    background: 'rgba(34,211,238,0.07)', color: '#22d3ee',
+                    border: '1px solid rgba(34,211,238,0.15)',
+                  }}>
+                    conf {rec.confidence.toFixed(2)}
+                  </span>
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
+                    {rec.has_feedback && (
+                      <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginRight: 8, animation: 'fadeIn 0.3s ease' }}>
+                        ✓ Feedback Given
+                      </span>
+                    )}
+                    {feedbackStatus[rec.product_id] === 'saved' && (
+                      <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginRight: 8, animation: 'fadeIn 0.3s ease' }}>
+                        ✓ Saved
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleRate(rec.product_id, 1)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2,
+                        opacity: (feedbackStatus[rec.product_id] === 'saving' || rec.has_feedback) ? 0.5 : 1
+                      }}
+                      title="Like"
+                    >
+                      👍
+                    </button>
+                    <button
+                      onClick={() => handleRate(rec.product_id, -1)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2,
+                        opacity: (feedbackStatus[rec.product_id] === 'saving' || rec.has_feedback) ? 0.5 : 1
+                      }}
+                      title="Dislike"
+                    >
+                      👎
+                    </button>
                   </div>
+
                 </div>
+              </div>
             ))}
           </div>
         </>

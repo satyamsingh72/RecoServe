@@ -123,3 +123,20 @@ class RoleChecker:
                 detail=f"Operation not permitted. Required roles: {self.allowed_roles}",
             )
         return user
+
+class PermissionChecker:
+    """
+    Dependency that checks if the current user's role has the required permission.
+    Usage: Depends(PermissionChecker("user_create"))
+    """
+    def __init__(self, required_permission: str):
+        self.required_permission = required_permission
+
+    async def __call__(self, user: User = Depends(get_current_user)):
+        role_data = await db.roles.find_one({"name": user.role})
+        if not role_data or self.required_permission not in role_data.get("permissions", []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operation not permitted. Required permission: {self.required_permission}",
+            )
+        return user

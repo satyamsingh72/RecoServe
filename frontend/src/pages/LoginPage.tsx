@@ -40,11 +40,11 @@ export default function LoginPage() {
       const token = data.access_token;
 
       // Base64 decode the JWT payload to get role and username
-      const payloadBase64 = token.split('.')[1];
-      const decodedPayload = JSON.parse(window.atob(payloadBase64));
+       const payloadBase64 = token.split('.')[1];
+       const decodedPayload = JSON.parse(window.atob(payloadBase64));
 
-      login(token, decodedPayload.sub, decodedPayload.role);
-      navigate('/');
+       login(token, decodedPayload.sub, decodedPayload.role, decodedPayload.permissions || []);
+       navigate('/');
     } catch (err: any) {
       setError(err.message);
     }
