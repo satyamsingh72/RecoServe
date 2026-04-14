@@ -118,6 +118,9 @@ class RoleChecker:
 
     async def __call__(self, user: User = Depends(get_current_user)):
         if user.role not in self.allowed_roles:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("Access denied: User %s with role %s attempted to access resource requiring %s", user.username, user.role, self.allowed_roles)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Operation not permitted. Required roles: {self.allowed_roles}",

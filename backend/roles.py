@@ -30,7 +30,7 @@ async def list_permissions(_ = Depends(RoleChecker(["Admin"]))):
     perms = await db.permissions.find().to_list(length=100)
     return [Permission(**{k: v for k, v in p.items() if k != "_id"}) for p in perms]
 
-@router.get("/", response_model=List[Role])
+@router.get("", response_model=List[Role])
 async def list_roles(_ = Depends(RoleChecker(["Admin"]))):
     roles = await db.roles.find().to_list(length=100)
     return [Role(**{k: v for k, v in r.items() if k != "_id"}) for r in roles]
